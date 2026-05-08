@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Secure LAN File Sharing</title>
+
+<link rel="stylesheet" href="css/tailwind.css">
+<script src="/socket.io/socket.io.js"></script>
+
+<link rel="stylesheet" href="css/styles.css">
+
+</head>
+
+<body class="bg-gray-100 dark:bg-gray-900 min-h-screen">
+
+<div class="container mx-auto px-4 py-8">
+
+<header class="text-center mb-12">
+
+<div class="flex justify-end mb-4">
+
+<div id="auth-buttons" class="space-x-4">
+
+<a href="login.html" class="bg-blue-500 text-white py-2 px-4 rounded">
+Login
+</a>
+
+<a href="signup.html" class="bg-green-500 text-white py-2 px-4 rounded">
+Sign Up
+</a>
+
+</div>
+
+
+<div id="user-info" class="hidden">
+
+<span id="user-email" class="text-gray-700 mr-4"></span>
+
+<button id="logout-btn" class="bg-red-500 text-white py-2 px-4 rounded">
+Logout
+</button>
+
+</div>
+
+</div>
+
+
+<h1 class="text-4xl font-bold text-gray-800 dark:text-white mb-4">
+Secure LAN File Sharing System
+</h1>
+
+<p class="text-lg text-gray-600 dark:text-gray-300">
+Decentralized file sharing over LAN using IPFS
+</p>
+
+</header>
+
+
+
+<!-- MAIN ACTION BUTTONS -->
+
+<div class="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+
+<div class="bg-white rounded-lg shadow-lg p-6 text-center">
+
+<h2 class="text-xl font-semibold mb-4">Upload File</h2>
+
+<button onclick="window.location.href='upload.html'"
+class="bg-blue-500 text-white py-2 px-4 rounded">
+Upload
+</button>
+
+</div>
+
+
+<div class="bg-white rounded-lg shadow-lg p-6 text-center">
+
+<h2 class="text-xl font-semibold mb-4">Download File</h2>
+
+<button onclick="window.location.href='download.html'"
+class="bg-green-500 text-white py-2 px-4 rounded">
+Download
+</button>
+
+</div>
+
+
+<div class="bg-white rounded-lg shadow-lg p-6 text-center">
+
+<h2 class="text-xl font-semibold mb-4">View Peers</h2>
+
+<button onclick="window.location.href='peers.html'"
+class="bg-purple-500 text-white py-2 px-4 rounded">
+Peers
+</button>
+
+</div>
+
+</div>
+
+
+
+<!-- DASHBOARD -->
+
+<div class="mt-12">
+
+<h2 class="text-3xl font-bold text-center text-gray-800 dark:text-white mb-8">
+Network Dashboard
+</h2>
+
+
+<div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+
+<div class="bg-white rounded-lg shadow-lg p-6 text-center">
+
+<h3>Total Files</h3>
+<p id="total-files" class="text-2xl font-bold text-blue-500">0</p>
+
+</div>
+
+
+<div class="bg-white rounded-lg shadow-lg p-6 text-center">
+
+<h3>Active Peers</h3>
+<p id="total-users" class="text-2xl font-bold text-green-500">0</p>
+
+</div>
+
+
+<div class="bg-white rounded-lg shadow-lg p-6 text-center">
+
+<h3>Total Size</h3>
+<p id="total-size" class="text-2xl font-bold text-purple-500">0 MB</p>
+
+</div>
+
+
+<div class="bg-white rounded-lg shadow-lg p-6 text-center">
+
+<h3>Network Status</h3>
+<p id="network-status" class="text-2xl font-bold text-red-500">Offline</p>
+
+</div>
+
+</div>
+
+
+
+<!-- HISTORY + TRANSACTIONS -->
+
+<div class="grid md:grid-cols-2 gap-6 mb-8">
+
+
+<div class="bg-white rounded-lg shadow-lg p-6">
+
+<h3 class="text-xl font-semibold mb-4">Recent History</h3>
+
+<ul id="history-list">
+<li>No recent files</li>
+</ul>
+
+</div>
+
+
+<div class="bg-white rounded-lg shadow-lg p-6">
+
+<h3 class="text-xl font-semibold mb-4">Recent Transactions</h3>
+
+<ul id="transactions-list">
+<li>No recent transactions</li>
+</ul>
+
+</div>
+
+
+</div>
+
+
+
+<!-- ACTIVE PEERS -->
+
+<div class="bg-white rounded-lg shadow-lg p-6">
+
+<h3 class="text-xl font-semibold mb-4">Active Peers</h3>
+
+<ul id="peers-list">
+<li>No active peers</li>
+</ul>
+
+</div>
+
+
+</div>
+
+
+</div>
+
+
+
+<script src="js/app.js"></script>
+<script src="js/socket-global.js"></script>
+
+
+<script>
+
+const token = localStorage.getItem("token");
+
+if(token){
+
+document.getElementById("auth-buttons").classList.add("hidden");
+document.getElementById("user-info").classList.remove("hidden");
+
+const payload = JSON.parse(atob(token.split(".")[1]));
+document.getElementById("user-email").innerText =
+payload.username || payload.email || "User";
+
+document.getElementById("logout-btn").onclick = () => {
+localStorage.removeItem("token");
+location.reload();
+};
+
+loadDashboard();
+
+// AUTO REFRESH DASHBOARD
+setInterval(loadDashboard,5000);
+
+}
+
+
+
+async function loadDashboard(){
+
+try{
+
+// STATS
+
+const statsRes = await fetch("/api/files/stats");
+
+if(statsRes.ok){
+
+const stats = await statsRes.json();
+
+document.getElementById("total-files").innerText = stats.totalFiles;
+document.getElementById("total-users").innerText = stats.totalUsers;
+document.getElementById("total-size").innerText = (stats.totalSize/1024/1024).toFixed(2)+" MB";
+
+document.getElementById("network-status").innerText = stats.networkStatus;
+document.getElementById("network-status").className="text-2xl font-bold text-green-500";
+
+}
+
+
+
+// HISTORY
+
+const historyRes = await fetch("/api/files/history");
+
+if(historyRes.ok){
+
+const data = await historyRes.json();
+
+const list = document.getElementById("history-list");
+
+if(data.history.length){
+
+list.innerHTML = data.history.map(h =>
+`<li>${h.filename} - ${new Date(h.createdAt).toLocaleString("en-IN", {timeZone:"Asia/Kolkata",year:"numeric",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:true})}</li>`
+).join("");
+
+}
+
+}
+
+
+
+// TRANSACTIONS
+const txRes = await fetch("/api/files/transactions");
+
+if(txRes.ok){
+
+const data = await txRes.json();
+
+const list = document.getElementById("transactions-list");
+
+if(data.transactions.length){
+
+list.innerHTML = data.transactions.map(t => {
+
+const d = JSON.parse(t.data);
+
+return `<li>${d.action} - ${d.filename}</li>`;
+
+}).join("");
+
+}
+}
+
+
+// PEERS
+
+const peerRes = await fetch("/api/files/peers");
+
+if(peerRes.ok){
+
+const data = await peerRes.json();
+
+const peers = data.peers || [];
+
+// Show live peer count in the Active Peers stat card
+document.getElementById("total-users").innerText = peers.length;
+
+const list = document.getElementById("peers-list");
+
+if(peers.length){
+list.innerHTML = peers.map(p =>
+`<li class="flex items-center gap-2 py-1 border-b border-gray-100 last:border-0"><span class="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span><span class="font-medium text-gray-700">${p.username || p.id}</span><span class="text-gray-400 text-xs ml-auto font-mono">${p.ip}</span></li>`
+).join("");
+} else {
+list.innerHTML = '<li class="text-gray-400 text-sm">No active peers</li>';
+}
+
+}
+
+
+}catch(err){
+
+console.error("Dashboard error:",err);
+
+}
+
+}
+
+</script>
+
+
+</body>
+</html>

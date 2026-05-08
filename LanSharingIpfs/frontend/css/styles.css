@@ -1,0 +1,12 @@
+/* Custom styles — light theme complement */
+
+/* Ensure dark-mode class doesn't darken the UI */
+.dark { background-color: #eff6ff; color: #1e293b; }
+.dark .bg-white { background-color: #ffffff; color: #1e293b; }
+.dark .bg-gray-100 { background-color: #eff6ff; }
+.dark input, .dark button {
+  background-color: #ffffff;
+  color: #1e293b;
+  border-color: #bfdbfe;
+}
+.dark input::placeholder { color: #94a3b8; }

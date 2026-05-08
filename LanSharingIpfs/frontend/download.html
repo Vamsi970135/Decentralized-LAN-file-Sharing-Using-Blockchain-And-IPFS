@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download File - Secure LAN File Sharing</title>
+    <link rel="stylesheet" href="css/tailwind.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .download-card {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .cid-input {
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid #e5e7eb;
+            transition: all 0.3s ease;
+        }
+        .cid-input:focus {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+        .download-btn {
+            background: linear-gradient(135deg, #10b981, #059669);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+            transition: all 0.3s ease;
+        }
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+        }
+        .register-btn {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+            transition: all 0.3s ease;
+        }
+        .register-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #10b981, #059669);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .tab-btn { transition: all 0.2s; }
+        .tab-btn.active { background: rgba(255,255,255,0.25); font-weight: 700; }
+        .panel { display: none; }
+        .panel.active { display: block; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-green-50 to-emerald-100 dark:from-gray-900 dark:to-gray-800 min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-lg w-full download-card rounded-2xl shadow-2xl p-8">
+        <div class="text-center mb-6">
+            <h1 class="text-3xl font-bold text-white mb-2">Download File</h1>
+            <p class="text-green-100">Retrieve files securely from the LAN network</p>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex gap-2 mb-6">
+            <button id="tab-download" class="tab-btn active flex-1 text-white text-sm py-2 rounded-lg" onclick="switchTab('download')">📥 Download</button>
+            
+        </div>
+
+        <!-- Download Panel -->
+        <div id="panel-download" class="panel active">
+            <form id="downloadForm" class="space-y-4">
+                <div>
+                    <label for="cid-input" class="block text-sm font-semibold text-white mb-2">Enter Content Identifier (CID)</label>
+                    <div class="relative">
+                        <input type="text" id="cid-input" placeholder="e.g., Qm..." class="cid-input w-full px-4 py-3 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none" required>
+                        <svg class="absolute right-3 top-3 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <button type="submit" id="download-btn" class="w-full download-btn text-white font-bold py-3 px-6 rounded-lg transition duration-300">Download File</button>
+            </form>
+            
+        </div>
+
+        <!-- Register CID Panel -->
+        
+        <!-- Progress -->
+        <div id="progress-container" class="mt-6 hidden">
+            <div class="w-full bg-white/20 rounded-full h-3 overflow-hidden">
+                <div id="progress-bar" class="progress-bar h-full rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+            </div>
+            <p id="progressText" class="text-sm text-white mt-3 text-center animate-pulse">Downloading... Please wait</p>
+        </div>
+
+        <!-- Messages -->
+        <div id="message" class="mt-4 text-center">
+            <div id="successMessage" class="hidden bg-green-500 text-white p-3 rounded-lg">
+                <svg class="inline w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                </svg>
+                <span id="successText">Done!</span>
+            </div>
+            <div id="errorMessage" class="hidden bg-red-500 text-white p-3 rounded-lg">
+                <svg class="inline w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                </svg>
+                <span id="errorText">Download failed. Please check the CID and try again.</span>
+            </div>
+        </div>
+
+        <div class="text-center mt-6">
+            <button onclick="window.location.href='index.html'" class="inline-flex items-center text-green-200 hover:text-white transition duration-300">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                Back to Home
+            </button>
+        </div>
+    </div>
+    <script src="js/download.js"></script>
+</body>
+</html>

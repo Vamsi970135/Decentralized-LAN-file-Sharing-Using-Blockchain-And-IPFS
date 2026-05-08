@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peer Chat – LAN File Sharing</title>
+    <link rel="stylesheet" href="css/tailwind.css">
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/socket-global.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: #f0f4f8;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            display: flex;
+            align-items: stretch;
+            justify-content: center;
+            padding: 0;
+        }
+
+        /* ── MAIN LAYOUT ── */
+        .chat-app {
+            width: 100%;
+            max-width: 1100px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            box-shadow: 0 0 40px rgba(0,0,0,0.12);
+        }
+
+        /* ── TOP BAR ── */
+        .topbar {
+            background: #1d4ed8;
+            color: white;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .topbar h1 { font-size: 1.1rem; font-weight: 700; }
+        .topbar p  { font-size: 0.75rem; opacity: 0.75; margin-top: 2px; }
+        .back-link {
+            color: rgba(255,255,255,0.85);
+            font-size: 0.82rem;
+            text-decoration: none;
+            display: flex; align-items: center; gap: 5px;
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 8px;
+            border: none; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .back-link:hover { background: rgba(255,255,255,0.25); }
+
+        /* ── BODY (SIDEBAR + CHAT) ── */
+        .chat-body {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* ── SIDEBAR ── */
+        .sidebar {
+            width: 230px;
+            flex-shrink: 0;
+            background: #f8fafc;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .sidebar-header {
+            padding: 14px 16px 10px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .peer-list-wrap { flex: 1; overflow-y: auto; padding: 10px 10px 0; }
+
+        .peer-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.15s;
+            margin-bottom: 4px;
+            border: 2px solid transparent;
+        }
+        .peer-item:hover   { background: #eff6ff; }
+        .peer-item.selected { background: #dbeafe; border-color: #3b82f6; }
+
+        .peer-avatar {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: white; font-weight: 700; font-size: 0.95rem;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .peer-name  { font-size: 0.87rem; font-weight: 600; color: #1e293b; }
+        .peer-ip    { font-size: 0.7rem; color: #64748b; font-family: monospace; }
+        .peer-online { display: flex; align-items: center; gap: 4px; font-size: 0.7rem; color: #16a34a; }
+        .dot-green {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #22c55e;
+            animation: pulse-dot 2s infinite;
+        }
+        @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+        .no-peers-msg {
+            text-align: center;
+            padding: 30px 16px;
+            color: #94a3b8;
+            font-size: 0.82rem;
+        }
+
+        .sidebar-footer {
+            padding: 12px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .start-btn {
+            width: 100%;
+            padding: 9px;
+            border-radius: 9px;
+            background: #1d4ed8;
+            color: white;
+            font-size: 0.82rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .start-btn:hover:not(:disabled) { background: #1e40af; }
+        .start-btn:disabled { background: #cbd5e1; color: #94a3b8; cursor: not-allowed; }
+
+        /* ── CHAT PANEL ── */
+        .chat-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        /* Chat header */
+        .chat-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+            background: #fff;
+        }
+        .chat-header-avatar {
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: white; font-weight: 700; font-size: 1rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .chat-header-name  { font-size: 0.95rem; font-weight: 700; color: #1e293b; }
+        .chat-header-sub   { font-size: 0.73rem; color: #64748b; margin-top: 1px; }
+        .connected-badge {
+            margin-left: auto;
+            display: flex; align-items: center; gap: 5px;
+            font-size: 0.72rem; color: #16a34a; font-weight: 600;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            padding: 4px 10px; border-radius: 20px;
+        }
+
+        /* Messages area */
+        #chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            background: #f8fafc;
+        }
+        #chat-messages::-webkit-scrollbar { width: 5px; }
+        #chat-messages::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+        .msg-row-sent     { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+        .msg-row-received { display: flex; justify-content: flex-start; margin-bottom: 6px; }
+
+        /* Sent bubble */
+        .bubble-sent {
+            max-width: 65%;
+            background: #1d4ed8;
+            color: #ffffff;
+            padding: 10px 14px;
+            border-radius: 18px 18px 4px 18px;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+            box-shadow: 0 2px 8px rgba(29,78,216,0.25);
+        }
+        .bubble-sent .sender-label { font-size: 0.7rem; opacity: 0.75; margin-bottom: 3px; font-weight: 600; }
+
+        /* Received bubble */
+        .bubble-received {
+            max-width: 65%;
+            background: #ffffff;
+            color: #1e293b;
+            padding: 10px 14px;
+            border-radius: 18px 18px 18px 4px;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+        .bubble-received .sender-label { font-size: 0.7rem; color: #64748b; margin-bottom: 3px; font-weight: 600; }
+
+        /* CID card inside bubbles */
+        .cid-card {
+            margin-top: 8px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.15);
+        }
+        .bubble-received .cid-card {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+        }
+        .cid-card-filename {
+            font-weight: 600;
+            font-size: 0.82rem;
+            display: flex; align-items: center; gap-6px;
+            margin-bottom: 5px;
+        }
+        .bubble-sent .cid-card-filename { color: #fff; }
+        .bubble-received .cid-card-filename { color: #1e293b; }
+        .cid-hash {
+            font-family: monospace;
+            font-size: 0.7rem;
+            word-break: break-all;
+            margin-bottom: 8px;
+            opacity: 0.75;
+        }
+        .bubble-sent .cid-hash { color: #bfdbfe; }
+        .bubble-received .cid-hash { color: #475569; }
+        .cid-sub {
+            font-size: 0.68rem;
+            margin-top: 5px;
+        }
+        .bubble-sent .cid-sub { color: rgba(255,255,255,0.6); }
+        .bubble-received .cid-sub { color: #94a3b8; }
+
+        .download-btn {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: #2563eb;
+            color: white;
+            font-size: 0.75rem; font-weight: 600;
+            padding: 5px 12px;
+            border-radius: 7px;
+            text-decoration: none;
+            transition: background 0.15s;
+        }
+        .download-btn:hover { background: #1d4ed8; }
+        .bubble-received .download-btn { background: #1d4ed8; }
+
+        /* System message divider */
+        .sys-msg {
+            display: flex; align-items: center; gap: 8px;
+            color: #94a3b8; font-size: 0.72rem;
+            text-align: center;
+            margin: 8px 0;
+        }
+        .sys-msg::before, .sys-msg::after {
+            content: ''; flex: 1;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        /* Empty state */
+        .empty-state {
+            flex: 1;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            color: #cbd5e1;
+            font-size: 0.875rem;
+            gap: 10px;
+        }
+
+        /* ── INPUT BAR ── */
+        .input-bar {
+            padding: 12px 16px;
+            border-top: 1px solid #e2e8f0;
+            background: #fff;
+            flex-shrink: 0;
+        }
+        .input-row {
+            display: flex; gap: 8px; margin-bottom: 8px;
+        }
+        #chat-input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            color: #1e293b;
+            background: #f8fafc;
+            outline: none;
+            transition: border 0.2s;
+        }
+        #chat-input:focus { border-color: #3b82f6; background: #fff; }
+        #chat-input::placeholder { color: #94a3b8; }
+        #chat-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .send-btn {
+            padding: 10px 16px;
+            background: #1d4ed8;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex; align-items: center;
+        }
+        .send-btn:hover:not(:disabled) { background: #1e40af; }
+        .send-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+
+        .share-cid-btn {
+            width: 100%;
+            padding: 9px 14px;
+            background: #f8fafc;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            transition: all 0.2s;
+        }
+        .share-cid-btn:hover:not(:disabled) { border-color: #3b82f6; color: #1d4ed8; background: #eff6ff; }
+        .share-cid-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ── CID MODAL ── */
+        #cid-modal {
+            position: fixed; inset: 0; z-index: 100;
+            background: rgba(15,23,42,0.55);
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        #cid-modal.hidden { display: none; }
+        .modal-box {
+            background: #fff;
+            border-radius: 18px;
+            width: 100%; max-width: 440px;
+            margin: 16px;
+            padding: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+        .modal-title {
+            font-size: 1rem; font-weight: 700; color: #1e293b;
+            display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+        }
+        .modal-sub { font-size: 0.75rem; color: #94a3b8; margin-bottom: 16px; }
+        .modal-close {
+            background: none; border: none; cursor: pointer; color: #94a3b8;
+            transition: color 0.15s;
+        }
+        .modal-close:hover { color: #1e293b; }
+
+        .cid-file-btn {
+            width: 100%;
+            padding: 12px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            background: #f8fafc;
+            cursor: pointer;
+            display: flex; align-items: center; gap: 12px;
+            text-align: left;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+        .cid-file-btn:hover { border-color: #3b82f6; background: #eff6ff; }
+        .cid-file-icon {
+            width: 40px; height: 40px;
+            background: #dbeafe; border-radius: 9px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .cid-file-name { font-size: 0.85rem; font-weight: 600; color: #1e293b; }
+        .cid-file-meta { font-size: 0.7rem; color: #94a3b8; margin-top: 1px; }
+
+        #cid-list { max-height: 300px; overflow-y: auto; }
+        #cid-list::-webkit-scrollbar { width: 4px; }
+        #cid-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 24px; right: 24px;
+            padding: 12px 18px;
+            border-radius: 10px;
+            color: white; font-size: 0.85rem; font-weight: 500;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            z-index: 200;
+            animation: slide-in 0.2s ease;
+        }
+        @keyframes slide-in { from { transform: translateY(10px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+    </style>
+</head>
+<body>
+
+<div class="chat-app">
+
+    <!-- TOP BAR -->
+    <div class="topbar">
+        <div>
+            <h1>💬 Peer Chat</h1>
+            <p>Direct LAN messaging · No internet required</p>
+        </div>
+        <button class="back-link" onclick="window.location.href='index.html'">
+            ← Back to Home
+        </button>
+    </div>
+
+    <!-- BODY -->
+    <div class="chat-body">
+
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="sidebar-header">Online Peers</div>
+            <div class="peer-list-wrap">
+                <div id="peer-list"></div>
+                <div id="no-peers" class="no-peers-msg" style="display:none">
+                    <svg width="40" height="40" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin:0 auto 8px;opacity:0.3">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.14 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
+                    </svg>
+                    <p>No peers on LAN</p>
+                    <p style="margin-top:4px;font-size:0.68rem;color:#b0bec5">Make sure other devices are on same WiFi</p>
+                </div>
+            </div>
+            <div class="sidebar-footer">
+                <button id="start-chat" class="start-btn" disabled>💬 Start Chat</button>
+            </div>
+        </div>
+
+        <!-- CHAT PANEL -->
+        <div class="chat-panel">
+
+            <!-- Chat header -->
+            <div class="chat-header">
+                <div class="chat-header-avatar" id="peer-avatar">?</div>
+                <div>
+                    <p class="chat-header-name" id="chat-header">No peer selected</p>
+                    <p class="chat-header-sub" id="connection-status">Select a peer from the sidebar</p>
+                </div>
+                <span id="online-badge" class="connected-badge" style="display:none">
+                    <span class="dot-green"></span> Connected
+                </span>
+            </div>
+
+            <!-- Messages -->
+            <div id="chat-messages">
+                <div class="empty-state" id="empty-state">
+                    <svg width="52" height="52" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="opacity:0.3">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                    </svg>
+                    <p>Select a peer and start chatting</p>
+                </div>
+            </div>
+
+            <!-- Input bar -->
+            <div class="input-bar">
+                <div class="input-row">
+                    <input id="chat-input" type="text" placeholder="Type a message… (Enter to send)" disabled>
+                    <button id="send-btn" class="send-btn" disabled>
+                        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                        </svg>
+                    </button>
+                </div>
+                <button id="share-cid-btn" class="share-cid-btn" disabled>
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+                    </svg>
+                    Share File via IPFS (Send CID)
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- CID MODAL -->
+<div id="cid-modal" class="hidden">
+    <div class="modal-box">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">
+            <div>
+                <p class="modal-title">
+                    <svg width="18" height="18" fill="none" stroke="#2563eb" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Select File to Share
+                </p>
+                <p class="modal-sub">Choose a file you've uploaded to share its IPFS CID</p>
+            </div>
+            <button id="close-cid-modal" class="modal-close">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div id="cid-list">
+            <p style="color:#94a3b8;font-size:0.82rem;text-align:center;padding:20px 0">Loading files…</p>
+        </div>
+    </div>
+</div>
+
+<script src="js/chat.js"></script>
+</body>
+</html>
